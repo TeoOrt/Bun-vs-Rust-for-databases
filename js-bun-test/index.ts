@@ -49,15 +49,18 @@ let averages: Averages = { read: [], write: [] };
 
 const time_read_file = new Date().getTime();
 const content: any[] = await read_file();
-const time_read_file_e = new Date().getTime();
+const time_read_file_e = new Date().getSeconds();
 
-for (let i = 0; i < 1000; i++) {
-  const write_time = new Date().getTime();
+const write_time = performance.now();
+for (let i = 0; i < 1; i++) {
   write_to_db(db, content);
-  const write_time_e = new Date().getTime();
-  averages.read.push(time_read_file_e - time_read_file);
-  const read_all = new Date().getTime();
+  // averages.read.push(time_read_file_e - time_read_file);
+  // const read_all = new Date().getTime();
 }
+const write_time_e = performance.now();
+
+console.log("This operation took: ", write_time_e - write_time, "s");
+
 // read_all_db(db, content);
 // const read_all_e = new Date().getTime();
 // averages.write.push(read_all_e - read_all);
@@ -66,15 +69,15 @@ for (let i = 0; i < 1000; i++) {
 //   averages.read.reduce((cur: number, next: number) => (cur += next)) /
 //   averages.read.length;
 
-const write_averages =
-  averages.write.reduce((cur: number, next: number) => (cur += next)) /
-  averages.write.length;
+// const write_averages =
+//   averages.write.reduce((cur: number, next: number) => (cur += next)) /
+//   averages.write.length;
 
-const results = `
-READ FILE TOOK = ${time_read_file_e - time_read_file},
-WRITE TO DB TOOK = ${write_averages},
-`;
+// const results = `
+// READ FILE TOOK = ${time_read_file_e - time_read_file},
+// WRITE TO DB TOOK = ${write_averages},
+// `;
 
-Bun.write("result_js.txt", results);
+// Bun.write("result_js.txt", results);
 // SECOND TEST
 // READ DATABASE
