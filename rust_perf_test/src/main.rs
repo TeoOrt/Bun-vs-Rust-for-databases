@@ -6,15 +6,18 @@ use anyhow::Result;
 use libs::Book;
 use libs::JsonParser;
 use log::Level;
-use sqlx::sqlite::SqlitePool;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::postgres::PgPoolOptions;
+use sqlx::Pool;
+use sqlx::Postgres;
 mod libs;
-#[tokio::main(flavor = "multi_thread", worker_threads = 32)]
+use dotenv::dotenv;
+#[tokio::main(flavor = "multi_thread", worker_threads = 50)]
 async fn main() -> Result<()> {
-    let database = SqlitePoolOptions::new()
-        .max_connections(15)
-        .idle_timeout(Duration::new(3, 0))
-        .connect("sqlite:../rust_db.sqlite")
+    dotenv().ok();
+    let database = PgPoolOptions::new()
+        .max_connections(30)
+        .idle_timeout(Duration::new(30, 0))
+        .connect(std::env::var("DATABASE_URL")?.as_str())
         .await?;
     simple_logger::init_with_level(Level::Info).unwrap();
     // create_table(&database).await?;
@@ -25,32 +28,29 @@ async fn main() -> Result<()> {
     log::info!("Starting to Write Books to DB ");
     let start_time = Instant::now();
 
-    let mut handles = vec![];
     let ref_db = Arc::new(database);
     let ref_parser = Arc::new(parser);
 
-    for _ in 0..1 {
+    while start_time.elapsed() < Duration::from_secs(120) {
         let db_conn = ref_db.clone();
         let lib_parser = ref_parser.clone();
-
-        let handle = tokio::spawn(async move {
-            separete_books(&db_conn, &lib_parser)
-                .await
-                .expect("Startup error");
-        });
-        handles.push(handle);
+        separete_books(&db_conn, &lib_parser).await?;
     }
 
-    for handle in handles {
-        handle.await.unwrap();
-    }
-    log::info!("Finished at {:?}", start_time.elapsed());
-    log::info!("Finished Writing to DB");
-    // clean().await?;
+    let counted = get_count(&ref_db).await?;
+    log::info!("Finished at {} records written in 1 minute", counted);
+
     Ok(())
 }
 
-async fn separete_books(db: &SqlitePool, json_data: &JsonParser) -> Result<()> {
+async fn get_count(db: &Pool<Postgres>) -> Result<i64> {
+    let result = sqlx::query_as::<_, (i64,)>("SELECT COUNT(id) FROM rust_db_migrate")
+        .fetch_one(db)
+        .await?;
+    Ok(result.0)
+}
+
+async fn separete_books(db: &Pool<Postgres>, json_data: &JsonParser) -> Result<()> {
     let mut handles = vec![];
     for books in json_data.book_list.clone() {
         let db_cln = db.clone();
@@ -66,13 +66,13 @@ async fn separete_books(db: &SqlitePool, json_data: &JsonParser) -> Result<()> {
     Ok(())
 }
 
-async fn insert_books(db: &SqlitePool, json_data: Book) -> Result<()> {
+async fn insert_books(db: &Pool<Postgres>, json_data: Book) -> Result<()> {
     let mut transaction = db.begin().await?;
     let authors_list = serde_json::to_string(&json_data.authors)?;
     let _result = sqlx::query(
         r#"
                         INSERT INTO rust_db_migrate
-                        (key, title, cover_id, subject, authors) values ( ?1, ?2, ?3, ?4, ?5);
+                        (key, title, cover_id, subject, authors) values ( $1, $2, $3, $4, $5);
                         "#,
     )
     .bind(json_data.key)
