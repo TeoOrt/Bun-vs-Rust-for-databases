@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 sqlx = { version = "0.7.2", features = [
-    "sqlite",
+    "postgres",
     "json",
     "macros",
     "runtime-tokio",
@@ -19,3 +19,4 @@ tokio = { version = "1.32.0", features = ["full"] }
 log = "0.4.20"
 simple_logger = "4.2.0"
 anyhow = "1.0.75"
+dotenv = "0.15.0"
