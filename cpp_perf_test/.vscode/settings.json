@@ -1,0 +1,7 @@
+{
+  "cmake.sourceDirectory": "/home/teoortega/Desktop/PerformanceDiffDB/cpp_perf_test/libpqxx",
+  "cmake.configureOnOpen": true,
+  "files.associations": {
+    "iostream": "cpp"
+  }
+}
