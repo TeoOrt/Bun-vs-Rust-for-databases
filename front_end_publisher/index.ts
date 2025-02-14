@@ -18,6 +18,8 @@ type Book = {
 // 3.- Do it once and maybe increase the amount of request to see
 // How the programming languages perform
 //
+//
+//
 
 const data_to_send = Bun.file("data.json", { type: "application/json" });
 
@@ -48,11 +50,12 @@ const server = Bun.serve({
       }
       const test_socket = "test_suite";
 
-      contents.forEach((book) => {
-        server.publish(test_socket, JSON.stringify(book));
-      });
-
-      console.log(`Data sent was ${contents.length}`);
+      for (let i = 0; i < 100; ++i) {
+        contents.forEach((book) => {
+          server.publish(test_socket, JSON.stringify(book));
+        });
+      }
+      console.log("Finished publishing message");
       // server.publish(test_socket, "We are here");
     },
 
