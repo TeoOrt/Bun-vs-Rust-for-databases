@@ -1,29 +1,23 @@
-import { PoolClient } from "pg";
+import { Database } from "bun:sqlite";
 
-const write_to_db: any = async (db: PoolClient, book: any) => {
-  const db_cliet: any = await db.connect();
+const write_to_db = (db: Database, content: any[]) => {
+  const stmt = db.query(
+    "INSERT INTO books_ts (key, title ,cover_id , subject , authors)  values ($key, $title, $cover_id ,$subject ,$authors)"
+  );
+
   try {
-    await db_cliet.query("BEGIN");
-    const query = `
-        INSERT INTO books_ts (key, title, cover_id, subject, authors)
-        VALUES ($1, $2, $3, $4, $5);
-      `;
-
-    const values = [
-      book.key || "n/a",
-      book.title,
-      book.cover_id,
-      JSON.stringify(book.subject),
-      JSON.stringify(book.authors),
-    ];
-
-    await db_cliet.query(query, values);
-    await db_cliet.query("COMMIT");
-  } catch (error) {
-    console.log(`Error inserting book with key ${book.key}:`, error);
-    await db_cliet.query("ROLLBACK");
-  } finally {
-    await db_cliet.release();
+    content.forEach((book: any) => {
+      stmt.run({
+        $key: book.key == null ? "n/a" : book.key,
+        $title: book.title,
+        $cover_id: book.cover_id,
+        $subject: JSON.stringify(book.subject),
+        $authors: JSON.stringify(book.authors),
+      });
+    });
+  } catch (e) {
+    console.log(e);
   }
 };
+
 export default write_to_db;

@@ -25,7 +25,7 @@ class Fetcher {
   async fetch_books(this: Fetcher, obj: string) {
     try {
       const res = await fetch(`https://openlibrary.org/subjects/${obj}.json`);
-      const result: any = await res.json();
+      const result = await res.json();
       if (!Array.isArray(result.works)) {
         return;
       }

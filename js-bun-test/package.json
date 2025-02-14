@@ -1,16 +1,12 @@
 {
   "name": "speed-bun",
   "module": "index.ts",
+  "type": "module",
   "devDependencies": {
-    "@types/pg": "^8.10.5",
     "bun-types": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
-  },
-  "type": "module",
-  "dependencies": {
-    "pg": "^8.11.3",
-    "postgres": "^3.4.0"
   }
+
 }
