@@ -1,87 +1,48 @@
-use std::sync::Arc;
-use std::time::Duration;
-use std::time::Instant;
-
 use anyhow::Result;
-use libs::Book;
-use libs::JsonParser;
+mod book;
+mod profilers;
+mod reader;
+use reader::{process_book, read_buffer};
 use log::Level;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::Pool;
-use sqlx::Postgres;
-mod libs;
-use dotenv::dotenv;
-#[tokio::main(flavor = "multi_thread", worker_threads = 50)]
+
+use tokio_tungstenite::connect_async ;
+use tokio_tungstenite::tungstenite::protocol::Message;
+use std::sync::Arc;
+use futures_util::SinkExt;
+use url::Url;
+use tokio::sync::{Mutex,RwLock,mpsc};
+
+
+#[tokio::main]
 async fn main() -> Result<()> {
-    dotenv().ok();
-    let database = PgPoolOptions::new()
-        .max_connections(30)
-        .idle_timeout(Duration::new(30, 0))
-        .connect(std::env::var("DATABASE_URL")?.as_str())
-        .await?;
     simple_logger::init_with_level(Level::Info).unwrap();
-    // create_table(&database).await?;
-
-    let parser = JsonParser::new().await?;
-    log::debug!("{:?}", parser.book_list[0].authors);
-
     log::info!("Starting to Write Books to DB ");
-    let start_time = Instant::now();
 
-    let ref_db = Arc::new(database);
-    let ref_parser = Arc::new(parser);
+    let url = Url::parse("ws://127.0.0.1:3000").expect("Parsed incorrectly url");
+    let (mut ws_stream,_) = connect_async(url.as_str()).await.expect("Failed to connect to WS Server");
 
-    while start_time.elapsed() < Duration::from_secs(120) {
-        let db_conn = ref_db.clone();
-        let lib_parser = ref_parser.clone();
-        separete_books(&db_conn, &lib_parser).await?;
-    }
+    ws_stream.send(Message::Text("Hello Server".into())).await?;
+    let streamer = Arc::new(RwLock::new(ws_stream));
+    let receiver_socket = Arc::clone(&streamer);
+    let closing_socket = Arc::clone(&streamer);
 
-    let counted = get_count(&ref_db).await?;
-    log::info!("Finished at {} records written in 1 minute", counted);
+    let (tx, rx)= mpsc::channel(100);
 
-    Ok(())
-}
+    let book_storage = Vec::new();
 
-async fn get_count(db: &Pool<Postgres>) -> Result<i64> {
-    let result = sqlx::query_as::<_, (i64,)>("SELECT COUNT(id) FROM rust_db_migrate")
-        .fetch_one(db)
-        .await?;
-    Ok(result.0)
-}
+    let book_ptr = Arc::new(Mutex::new(book_storage));
 
-async fn separete_books(db: &Pool<Postgres>, json_data: &JsonParser) -> Result<()> {
-    let mut handles = vec![];
-    for books in json_data.book_list.clone() {
-        let db_cln = db.clone();
-        let handle = tokio::spawn(async move {
-            insert_books(&db_cln, books).await.expect("Error at db");
-        });
-        handles.push(handle);
-    }
-    for handle in handles {
-        handle.await?;
-    }
+    let task1 = tokio::spawn(read_buffer(receiver_socket, tx));
+    let task2 = tokio::spawn(process_book(rx,book_ptr));
+
+    let (_, _)= tokio::join!(
+    task1,
+    task2
+    );
+    
+
+    closing_socket.write().await.close(None).await?;
 
     Ok(())
 }
 
-async fn insert_books(db: &Pool<Postgres>, json_data: Book) -> Result<()> {
-    let mut transaction = db.begin().await?;
-    let authors_list = serde_json::to_string(&json_data.authors)?;
-    let _result = sqlx::query(
-        r#"
-                        INSERT INTO rust_db_migrate
-                        (key, title, cover_id, subject, authors) values ( $1, $2, $3, $4, $5);
-                        "#,
-    )
-    .bind(json_data.key)
-    .bind(json_data.title)
-    .bind(json_data.cover_id)
-    .bind(json_data.cover_id.to_string())
-    .bind(authors_list)
-    .execute(&mut *transaction)
-    .await?;
-    transaction.commit().await?;
-    Ok(())
-}
