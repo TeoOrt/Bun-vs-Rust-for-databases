@@ -2,7 +2,6 @@
 
 # Logs
 
-bun.
 logs
 _.log
 npm-debug.log_
@@ -10,7 +9,7 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
-bun.lockb
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json

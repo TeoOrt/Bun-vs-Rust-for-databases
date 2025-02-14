@@ -14,67 +14,79 @@
  * @secret ADDING C++ to the mix
  */
 
-import { Database } from "bun:sqlite";
 import Fetcher from "./libs/server";
 import write_to_db from "./libs/write";
 import { read_all_db, read_file } from "./libs/read";
 //connect to DB
-const db: Database = new Database("../rust_db.sqlite");
-//creating table
-db.exec(`CREATE TABLE IF NOT EXISTS books_ts(
-id INTEGER PRIMARY KEY,
-key TEXT NOT NULL,
-title TEXT NOT NULL,
-cover_id INTEGER NOT NULL,
-subject TEXT NOT NULL,
-authors TEXT NOT NULL 
-);`);
+import { Pool, PoolClient } from "pg";
 
+const connect_to_client = async () => {
+  const client: Pool = new Pool({
+    user: "postgres",
+    host: "127.0.0.1",
+    database: "postgres",
+    password: "postgress",
+    port: 5432,
+    max: 30,
+    idleTimeoutMillis: 10000,
+  });
+  return client;
+};
+const create_table = async (client: Pool) => {
+  try {
+    await client.query(`CREATE TABLE IF NOT EXISTS books_ts(
+      id SERIAL PRIMARY KEY,
+      key varchar NOT NULL,
+      title varchar NOT NULL,
+      cover_id INTEGER NOT NULL,
+      subject varchar NOT NULL,
+      authors varchar NOT NULL 
+      );`);
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const get_count = (client: Pool) => {
+  const query = client.query("SELECT COUNT(id) FROM books_ts");
+  return query;
+};
+
+const client: Pool = await connect_to_client();
+await create_table(client);
+const content: any[] = await read_file();
+
+const main = async (client: Pool) => {
+  let keepWriting = true;
+
+  setTimeout(() => {
+    console.log("End");
+    keepWriting = false;
+    // process.exit(0);
+  }, 120000);
+
+  let i = 0;
+  const interval = setInterval(async () => {
+    if (keepWriting) {
+      for (let i = 0; i < content.length; i++) {
+        await write_to_db(client, content[i]);
+      }
+    } else {
+      clearInterval(interval); // Stop the interval when keepWriting is false
+      console.log("End");
+      await client.end();
+    }
+  }, 0); // This will run approximately every 10ms. Adjust as needed.
+};
+/*
+ * ---------------------------------------MAIN----------------------------------------------------------------
+ */
+
+await main(client);
+
+//    /***************** DOCS ************** */
+//creating table
 //erase comment for new json
 // const Teo = new Fetcher();
 // await Teo.map_data();
 // await Teo.write_to_file();
-
-/*
- * ACTIONS
- * FIRST TEST
- * READ JSON FILE
- * WRITE TO DB
- */
-type Averages = {
-  read: number[];
-  write: number[];
-};
-let averages: Averages = { read: [], write: [] };
-
-const time_read_file = new Date().getTime();
-const content: any[] = await read_file();
-const time_read_file_e = new Date().getTime();
-
-for (let i = 0; i < 1000; i++) {
-  const write_time = new Date().getTime();
-  write_to_db(db, content);
-  const write_time_e = new Date().getTime();
-  averages.read.push(time_read_file_e - time_read_file);
-  const read_all = new Date().getTime();
-}
-// read_all_db(db, content);
-// const read_all_e = new Date().getTime();
-// averages.write.push(read_all_e - read_all);
-
-// const read_averages =
-//   averages.read.reduce((cur: number, next: number) => (cur += next)) /
-//   averages.read.length;
-
-const write_averages =
-  averages.write.reduce((cur: number, next: number) => (cur += next)) /
-  averages.write.length;
-
-const results = `
-READ FILE TOOK = ${time_read_file_e - time_read_file},
-WRITE TO DB TOOK = ${write_averages},
-`;
-
-Bun.write("result_js.txt", results);
-// SECOND TEST
-// READ DATABASE
