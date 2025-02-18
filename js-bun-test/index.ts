@@ -14,79 +14,23 @@
  * @secret ADDING C++ to the mix
  */
 
-import Fetcher from "./libs/server";
-import write_to_db from "./libs/write";
-import { read_all_db, read_file } from "./libs/read";
-//connect to DB
-import { Pool, PoolClient } from "pg";
+import Database from "bun:sqlite";
+import { Book } from "./types/types";
+import { book_insert, create_table } from "./libs/database";
 
-const connect_to_client = async () => {
-  const client: Pool = new Pool({
-    user: "postgres",
-    host: "127.0.0.1",
-    database: "postgres",
-    password: "postgress",
-    port: 5432,
-    max: 30,
-    idleTimeoutMillis: 10000,
-  });
-  return client;
-};
-const create_table = async (client: Pool) => {
-  try {
-    await client.query(`CREATE TABLE IF NOT EXISTS books_ts(
-      id SERIAL PRIMARY KEY,
-      key varchar NOT NULL,
-      title varchar NOT NULL,
-      cover_id INTEGER NOT NULL,
-      subject varchar NOT NULL,
-      authors varchar NOT NULL 
-      );`);
-  } catch (error) {
-    console.log(error);
-  }
-};
+const WS_URL = "ws://localhost:3000";
+const client = new WebSocket(WS_URL);
+const db: Database = new Database("../Test.db", { strict: true });
+create_table(db);
 
-const get_count = (client: Pool) => {
-  const query = client.query("SELECT COUNT(id) FROM books_ts");
-  return query;
-};
+console.log("Started listening at local host 3000");
+client.addEventListener("open", (event) => {
+  client.send("Hey");
+});
 
-const client: Pool = await connect_to_client();
-await create_table(client);
-const content: any[] = await read_file();
-
-const main = async (client: Pool) => {
-  let keepWriting = true;
-
-  setTimeout(() => {
-    console.log("End");
-    keepWriting = false;
-    // process.exit(0);
-  }, 120000);
-
-  let i = 0;
-  const interval = setInterval(async () => {
-    if (keepWriting) {
-      for (let i = 0; i < content.length; i++) {
-        await write_to_db(client, content[i]);
-      }
-    } else {
-      clearInterval(interval); // Stop the interval when keepWriting is false
-      console.log("End");
-      await client.end();
-    }
-  }, 0); // This will run approximately every 10ms. Adjust as needed.
-};
-/*
- * ---------------------------------------MAIN----------------------------------------------------------------
- */
-
-await main(client);
-
-//    /***************** DOCS ************** */
-//creating table
-//erase comment for new json
-// const Teo = new Fetcher();
-// await Teo.map_data();
-// await Teo.write_to_file();
+client.addEventListener("message", (event) => {
+  const data: string = event.data.toString();
+  const parsed = JSON.parse(data);
+  const book: Book = parsed;
+  book_insert(db, book);
+});
